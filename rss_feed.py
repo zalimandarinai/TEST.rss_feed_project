@@ -1,9 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
 from feedgen.feed import FeedGenerator
-from flask import Flask, Response
-
-app = Flask(__name__)
 
 def fetch_bloomberg_russia():
     # Bloomberg search URL for "Russia"
@@ -17,7 +14,7 @@ def fetch_bloomberg_russia():
     # Parse the HTML content
     soup = BeautifulSoup(response.text, 'html.parser')
 
-    # Find all article entries
+    # Find all article entries (make sure this matches the page structure)
     articles = soup.find_all('article', class_='story-package-module__story')
 
     # Prepare RSS feed generator
@@ -25,7 +22,13 @@ def fetch_bloomberg_russia():
     fg.title("Bloomberg Russia News")
     fg.link(href=url, rel="alternate")
     fg.description("RSS feed for Bloomberg articles about Russia")
+    fg.docs("http://www.rssboard.org/rss-specification")
+    fg.generator("python-feedgen")
     
+    # Set the lastBuildDate to the current time
+    from datetime import datetime
+    fg.lastBuildDate(datetime.utcnow())
+
     # Extract and add articles to the feed
     for article in articles:
         title = article.find('a').get_text(strip=True)
@@ -41,13 +44,12 @@ def fetch_bloomberg_russia():
     # Generate the RSS feed
     return fg.rss_str(pretty=True).decode('utf-8')
 
-@app.route("/")
-def get_feed():
+# Main function to generate and save the RSS feed
+if __name__ == "__main__":
     try:
         rss_feed = fetch_bloomberg_russia()
-        return Response(rss_feed, mimetype="application/rss+xml")
+        with open("bloomberg_russia.xml", "w", encoding="utf-8") as f:
+            f.write(rss_feed)
+        print("RSS feed generated successfully: bloomberg_russia.xml")
     except Exception as e:
-        return f"Error: {e}", 500
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+        print(f"Error: {e}")
