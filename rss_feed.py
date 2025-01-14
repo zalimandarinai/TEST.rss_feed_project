@@ -10,40 +10,36 @@ def home():
 
 @app.route('/rss', methods=['GET'])
 def get_rss():
-    # URL of the Bloomberg search page
     url = 'https://www.bloomberg.com/search?query=russia'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
 
     try:
-        # Fetch the page
         response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            return jsonify({'error': 'Failed to fetch data from Bloomberg', 'status_code': response.status_code}), 500
-        
-        # Parse the page with BeautifulSoup
-        soup = BeautifulSoup(response.content, 'html.parser')
+        response.raise_for_status()  # Raises HTTPError for bad responses
 
-        # Initialize an empty list to store articles
+        soup = BeautifulSoup(response.content, 'html.parser')
         articles = []
 
-        # Refine the scraping logic for Bloomberg's structure
-        for item in soup.find_all('div', class_='search-result-story__container'):
-            title_tag = item.find('a', class_='search-result-story__headline-link')
-            if title_tag:
-                title = title_tag.text.strip()
-                link = title_tag['href']
-                # Ensure link is complete
-                full_link = link if link.startswith('http') else f"https://www.bloomberg.com{link}"
-                articles.append({'title': title, 'link': full_link})
-        
-        # Return the results as JSON
+        # Find all article containers
+        for item in soup.find_all('article'):
+            # Extract title
+            title_tag = item.find('h1') or item.find('h2') or item.find('h3')
+            if title_tag and title_tag.a:
+                title = title_tag.get_text(strip=True)
+                link = title_tag.a['href']
+                # Ensure the link is absolute
+                if not link.startswith('http'):
+                    link = 'https://www.bloomberg.com' + link
+                articles.append({'title': title, 'link': link})
+
         return jsonify({'articles': articles})
-    
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'HTTP request failed: {e}'}), 500
     except Exception as e:
-        # Handle any errors in the scraping process
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'An error occurred: {e}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
